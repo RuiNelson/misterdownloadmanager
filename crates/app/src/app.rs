@@ -1894,6 +1894,12 @@ impl App {
                 ]));
             }
             "extension" => self.extension = Some(crate::extension::Extension::new()),
+            // The Safari row's "How to Add" steps, open (screenshots).
+            "safari-steps" => {
+                let mut offer = crate::extension::Extension::new();
+                offer.open_safari_steps();
+                self.extension = Some(offer);
+            }
             "language" => self.run(Cmd::ChooseLanguage, None, ctx),
             "shortcuts" => self.run(Cmd::Shortcuts, None, ctx),
             // The Help menu's windows and Download a gallery, for screenshots (#192). updates
