@@ -15,8 +15,11 @@ const HOST = "com.misterdownloadmanager.host";
 const VERSION = ext.runtime.getManifest().version;
 const HELP = "https://misterdownloadmanager.com/help/browser-help.html";
 const action = ext.action ?? ext.browserAction;
+// Safari has no downloads API at all (nor proxy): it can't take a download from the browser, so
+// the links clicked in a page are handed over instead (`link`, below; page.js).
+const SAFARI = !ext.downloads;
 // Firefox has no pause before the file name (onDeterminingFilename): its own paths below.
-const FIREFOX = !ext.downloads.onDeterminingFilename;
+const FIREFOX = !SAFARI && !ext.downloads.onDeterminingFilename;
 // Brave and Opera say who they are only in the client hints, Firefox's forks (Zen, LibreWolf,
 // Floorp, Waterfox) only in runtime.getBrowserInfo, which only Firefox's family has. Both go to
 // the host as `brands` (Options lists them by name; crates/ipc capture::browser_named).
@@ -1283,6 +1286,25 @@ async function offer(item, url, name) {
   return Boolean(reply.ok);
 }
 
+// Safari: a link clicked in a page (page.js) that may be a download, offered as the browser's own
+// downloads are: through `candidate` (Options' rules, Alt, pause) then `offer`. `{taken: true}`
+// when the app took it; else page.js lets the click go on, so nothing is lost. The link's file
+// name is its address's (Safari names a download only when it starts, which is too late).
+async function link(url, referrer, incognito) {
+  // What the browser opens itself (a PDF, a song) is taken only when Options say so (`opened`,
+  // "Also take files the browser would open"), as in the other browsers.
+  const r = await currentRules();
+  const type = extensionOf(url.split(/[?#]/)[0]).toUpperCase();
+  if (r && r.opened === false && OPENED[type]) return { taken: false };
+  const item = { url, referrer, incognito };
+  const c = await candidate(item, url).catch(() => null);
+  if (!c || c.left) {
+    leftAlone(c, item, url);
+    return { taken: false };
+  }
+  return { taken: await offer(item, url, c.name).catch(() => false) };
+}
+
 // Tabs opened in the last seconds: one the download was opened in (a link opened in a new tab
 // or window, Shift+click) is closed with it, as when the browser keeps the download.
 const newTabs = new Map();
@@ -1326,7 +1348,9 @@ async function drop(item) {
   closeLeftTab([firstUrl(item), item.url, item.finalUrl].filter(Boolean)).catch(() => {});
 }
 
-if (!FIREFOX) {
+if (SAFARI) {
+  // Nothing to listen to: see `link`.
+} else if (!FIREFOX) {
   // Chromium: once the final file name is known (after redirects and Content-Disposition). The
   // download waits for `suggest`, writing nothing, while the app is asked: taken, it is
   // cancelled; else it goes on as the browser's. So it is never lost or kept by both (the app
@@ -1840,6 +1864,9 @@ async function pageMessage(m, sender) {
   const page = senderPage(sender);
   const tab = sender.tab || {};
   if (m.type === "panel") return { on: page ? await panelOn(page) : false };
+  if (m.type === "link" && typeof m.url === "string") {
+    return link(m.url, page || "", Boolean(tab.incognito));
+  }
   if (m.type === "bypass" && typeof m.url === "string") {
     bypass.set(m.url, { at: Date.now() });
     return { ok: true };
