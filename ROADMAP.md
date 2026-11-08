@@ -445,6 +445,12 @@ These ship in a later version, when they're ready.
   (`MDM_WAYLAND=1`) placing their menus, which needs popup windows the window library doesn't
   have yet, so XWayland stays the default; Vulkan as the default renderer (below)
 
+- 🔄 The Safari extension (macOS), part of the app: a click on a link to a listed file type, the
+  right-click items, the button over videos, Media on this page and the toolbar button, from one
+  source with the other browsers' extension. Safari gives extensions no way to see its downloads,
+  so a download a page starts by itself stays with Safari. Built and its relay to the helper
+  checked in the sandbox Safari uses; still to check in Safari itself, signed with a Developer ID
+
 ### Bugs being looked into
 
 - 🔍 A 10-second freeze of the window after a night left open
