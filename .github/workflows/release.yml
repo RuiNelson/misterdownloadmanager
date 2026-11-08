@@ -257,6 +257,8 @@ jobs:
           key: release-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: release-${{ runner.os }}-cargo-
 
+      # Signed with the maintainer's Developer ID when the secrets are set (then Safari loads the
+      # extension as any other; ad hoc, only with Develop -> Allow Unsigned Extensions).
       - name: Apple Silicon and Intel .dmg
         env:
           GH_TOKEN: ${{ github.token }} # downloads the build's helpers signed in (fetch_release.py)
