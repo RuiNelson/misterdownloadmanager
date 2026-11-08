@@ -218,6 +218,8 @@ async function storedRules() {
 
 // One question at a time: callers meanwhile get its answer.
 let asking = null;
+// When Safari's page.js last had them asked for (once a minute at most, from every page).
+let rulesAskedAt = 0;
 function refreshRules() {
   asking = asking || askRules().finally(() => (asking = null));
   return asking;
@@ -244,6 +246,8 @@ async function askRules() {
   // keeps the files it would open).
   if (await remoteTarget()) {
     rules = { types: DEFAULT_TYPES, capture: true, excludedSites: "", excludedAddresses: [], opened: false, minKb: 0, at: Date.now() };
+    // Kept as the app's are: Safari's page.js holds links by the stored copy.
+    await ext.storage.local.set({ rules });
     return rules;
   }
   return null;
@@ -1289,14 +1293,15 @@ async function offer(item, url, name) {
 // Safari: a link clicked in a page (page.js) that may be a download, offered as the browser's own
 // downloads are: through `candidate` (Options' rules, Alt, pause) then `offer`. `{taken: true}`
 // when the app took it; else page.js lets the click go on, so nothing is lost. The link's file
-// name is its address's (Safari names a download only when it starts, which is too late).
-async function link(url, referrer, incognito) {
+// name is its `download` attribute's (`name`), else its address's (Safari names a download only
+// when it starts, which is too late).
+async function link(url, referrer, incognito, name) {
   // What the browser opens itself (a PDF, a song) is taken only when Options say so (`opened`,
   // "Also take files the browser would open"), as in the other browsers.
   const r = await currentRules();
-  const type = extensionOf(url.split(/[?#]/)[0]).toUpperCase();
+  const type = extensionOf(name || url.split(/[?#]/)[0]).toUpperCase();
   if (r && r.opened === false && OPENED[type]) return { taken: false };
-  const item = { url, referrer, incognito };
+  const item = { url, referrer, incognito, ...(name ? { filename: name } : {}) };
   const c = await candidate(item, url).catch(() => null);
   if (!c || c.left) {
     leftAlone(c, item, url);
@@ -1865,7 +1870,17 @@ async function pageMessage(m, sender) {
   const tab = sender.tab || {};
   if (m.type === "panel") return { on: page ? await panelOn(page) : false };
   if (m.type === "link" && typeof m.url === "string") {
-    return link(m.url, page || "", Boolean(tab.incognito));
+    const name = typeof m.name === "string" ? m.name.split(/[\\/]/).pop().slice(0, 255) : "";
+    return link(m.url, page || "", Boolean(tab.incognito), name);
+  }
+  // Safari's page.js, at each page: the rules it holds links by, refreshed when old (see `link`).
+  if (m.type === "rules") {
+    const r = await storedRules();
+    if ((!r || Date.now() - r.at > 60000) && Date.now() - rulesAskedAt > 60000) {
+      rulesAskedAt = Date.now();
+      refreshRules().catch(() => {});
+    }
+    return { ok: true };
   }
   if (m.type === "bypass" && typeof m.url === "string") {
     bypass.set(m.url, { at: Date.now() });

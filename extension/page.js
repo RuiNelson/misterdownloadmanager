@@ -40,6 +40,10 @@
   if (SAFARI) {
     ext.storage.local.get({ rules: null }).then((v) => learn(v.rules), () => {});
     ext.storage.onChanged.addListener(onStorage);
+    // Safari's background script sees no downloads, so nothing else would ask the app for
+    // Options' rules once they are old: changed types, or capture turned back on, would never
+    // reach the stored copy this reads. Asked here, it refreshes them when stale (onStorage).
+    tell({ type: "rules" });
   }
 
   // The file type a link leads to: its `download` name's, else its path's last name's.
@@ -59,11 +63,19 @@
 
   const hold = (e, a) => {
     e.preventDefault();
-    tell({ type: "link", url: a.href }).then((reply) => {
+    // The `download` name, when the link has one: the app's rules decide by it, as page.js did.
+    const name = a.getAttribute("download") || "";
+    tell({ type: "link", url: a.href, ...(name ? { name } : {}) }).then((reply) => {
       if (reply && reply.taken) return;
-      // Not the app's (Options, an excluded site, MDM not running): the click as it was (this
-      // one isn't trusted, so `note` leaves it alone).
-      a.click();
+      // Not the app's (Options, an excluded site, MDM not running): the click as it was, its
+      // Cmd/Shift/Ctrl too (a new tab or window stays one). This one isn't trusted, so `note`
+      // leaves it alone.
+      const keys = { ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey };
+      try {
+        a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0, ...keys }));
+      } catch {
+        a.click();
+      }
     });
   };
 

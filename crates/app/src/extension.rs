@@ -437,9 +437,8 @@ impl SafariSteps {
                     y += STEP + more;
                     lines_extra += more;
                 }
-                crate::dialogs::grow_px(ui.ctx(), "safari-steps", lines_extra);
                 // Safari forgets the unsigned setting when it quits.
-                winui::paragraph(
+                let note = winui::paragraph(
                     &p,
                     o.x + 22.0,
                     o.y + y + 14.0,
@@ -450,7 +449,12 @@ impl SafariSteps {
                     o.x + W - 18.0,
                     14.0,
                 );
-                winui::etched_h(&p, o.x + 16.0, o.y + h - 46.0, W - 32.0);
+                // NOTE plans two lines for it; a language that wraps it more grows the window.
+                lines_extra += 14.0 * (note.max(2) as f32 - 2.0);
+                crate::dialogs::grow_px(ui.ctx(), "safari-steps", lines_extra);
+                // `o` moved down with the banner, which `h` already counts: the bottom row is
+                // placed from the window's own top.
+                winui::etched_h(&p, o.x + 16.0, o.y + h - 46.0 - banner_extra, W - 32.0);
                 let placed = winui::buttons_to_right(&p, W - 18.0, 8.0, &[("Close", 90.0)], 200.0);
                 let close = winui::button(
                     ui,

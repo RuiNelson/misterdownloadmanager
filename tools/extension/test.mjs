@@ -1732,6 +1732,15 @@ const ask = (listeners) => (m, sender) => new Promise((r) => listeners.message(m
   await settle();
   assert.deepEqual(natives(calls), []);
   assert.deepEqual(notices(calls), [{ why: "file-type", name: "page.html", site: "x.test" }]);
+  // A `download` name (page.js sends it) decides the type and names the file.
+  calls.length = 0;
+  assert.deepEqual(await send({ type: "link", url: "https://x.test/dl?id=4", name: "b.iso" }, sender), { taken: true });
+  assert.equal(natives(calls)[0].filename, "b.iso");
+  // page.js's "rules" at a page's start: fresh ones aren't asked for again.
+  calls.length = 0;
+  assert.deepEqual(await send({ type: "rules" }, sender), { ok: true });
+  await settle();
+  assert.deepEqual(natives(calls), []);
   // A PDF is the browser's own to open unless Options say to take such files too.
   const closed = fakeApi({ firefox: true, safari: true, rules: { opened: false } });
   load(closed.api, true);
@@ -1768,8 +1777,17 @@ const ask = (listeners) => (m, sender) => new Promise((r) => listeners.message(m
         return this.attrs[n] || "";
       }
       click() {
+        this.dispatchEvent(new MouseEvent("click", {}));
+      }
+      dispatchEvent(ev) {
         this.clicks++;
+        this.again = ev;
         handlers.click({ type: "click", button: 0, isTrusted: false, target: this, preventDefault() {} });
+      }
+    }
+    class MouseEvent {
+      constructor(type, init) {
+        Object.assign(this, { type }, init);
       }
     }
     const stored = { rules: { types, capture } };
@@ -1784,6 +1802,7 @@ const ask = (listeners) => (m, sender) => new Promise((r) => listeners.message(m
     vm.runInNewContext(pageCode, {
       browser: api,
       Element,
+      MouseEvent,
       URL,
       Promise,
       addEventListener: (n, f) => (handlers[n] = f),
@@ -1802,7 +1821,8 @@ const ask = (listeners) => (m, sender) => new Promise((r) => listeners.message(m
   let { a, e } = t.click("https://x.test/f/a.zip");
   await t.settle();
   assert.ok(e.defaultPrevented && a.clicks === 0);
-  assert.deepEqual(t.sent, [{ type: "link", url: "https://x.test/f/a.zip" }]);
+  // At the page's start it has the rules refreshed when old (Safari's background sees no downloads).
+  assert.deepEqual(t.sent, [{ type: "rules" }, { type: "link", url: "https://x.test/f/a.zip" }]);
   // R0* is a wildcard; the type is the last name's, the query is not part of it.
   ({ e } = t.click("https://x.test/f/a.r07?x=1.html"));
   assert.ok(e.defaultPrevented);
@@ -1813,6 +1833,7 @@ const ask = (listeners) => (m, sender) => new Promise((r) => listeners.message(m
   assert.deepEqual(t.sent.at(-1), { type: "bypass", url: "https://x.test/f/a.zip" });
   ({ e } = t.click("https://x.test/dl?id=4", {}, { download: "b.iso" }));
   assert.ok(e.defaultPrevented, "a download attribute names the type");
+  assert.deepEqual(t.sent.at(-1), { type: "link", url: "https://x.test/dl?id=4", name: "b.iso" }, "and is sent with it");
   ({ e } = t.click("https://x.test/f/a.zip", { button: 1 }));
   assert.ok(!e.defaultPrevented, "only the primary button");
   // The app doesn't take it: the same link is clicked again, untrusted, and let through.
@@ -1820,7 +1841,11 @@ const ask = (listeners) => (m, sender) => new Promise((r) => listeners.message(m
   ({ a, e } = t.click("https://x.test/f/a.zip"));
   await t.settle();
   assert.ok(e.defaultPrevented && a.clicks === 1, "clicked again");
-  assert.equal(t.sent.filter((m) => m.type === "link").length, 1, "the second click is not held");
+  // Cmd held (a new tab): the click let through holds it too.
+  ({ a } = t.click("https://x.test/f/a.zip", { metaKey: true, shiftKey: false, ctrlKey: false }));
+  await t.settle();
+  assert.ok(a.clicks === 1 && a.again.metaKey === true && a.again.bubbles, "Cmd kept");
+  assert.equal(t.sent.filter((m) => m.type === "link").length, 2, "the clicks let through are not held");
   // Capture off in Options, or another browser: nothing held.
   t = await run({ safari: true, taken: true, capture: false });
   assert.ok(!t.click("https://x.test/f/a.zip").e.defaultPrevented);

@@ -1073,8 +1073,7 @@ fn downloadable(url: &str) -> bool {
 mod tests {
     use super::*;
 
-    /// The Chrome Web Store's copy and the app folder's (unpacked) both connect, and both are
-    /// served: the manifest's allowed_origins and the host's own caller check agree.
+    /// Safari's copy of the helper, inside the app's extension, finds the app it opens.
     #[test]
     fn safari_helper_finds_its_app() {
         let exe = std::path::Path::new(
@@ -1087,6 +1086,8 @@ mod tests {
         assert_eq!(bundle_of(std::path::Path::new("/usr/bin/nmhost")), None);
     }
 
+    /// The Chrome Web Store's copy and the app folder's (unpacked) both connect, and both are
+    /// served: the manifest's allowed_origins and the host's own caller check agree.
     #[test]
     fn store_and_unpacked_extensions_both_allowed() {
         let manifest = chromium_manifest(&this_program().unwrap());
