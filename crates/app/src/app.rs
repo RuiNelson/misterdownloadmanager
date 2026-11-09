@@ -1873,6 +1873,13 @@ impl App {
                     }
                 }
             }
+            // A page whose videos need ffmpeg (#351): without it the list has only the sound.
+            "video-adaptive" => {
+                self.run(Cmd::VideoPage, None, ctx);
+                if let Some(v) = &mut self.video_dlg {
+                    v.show_sample_adaptive();
+                }
+            }
             // A sample playlist (#69), its quality by its place in the list: `video-playlist:7`.
             "video-playlist" => {
                 self.run(Cmd::VideoPage, None, ctx);
@@ -2882,7 +2889,7 @@ impl App {
             return;
         };
         let name = mdm_engine::naming::file_name(None, &url);
-        if mdm_engine::supported(&url) && self.settings.auto_type(&name) {
+        if mdm_engine::supported(&url) && self.settings.clipboard_type(&name) {
             let cmd = ipc::Command {
                 url: Some(text),
                 ..Default::default()
@@ -5745,7 +5752,13 @@ impl App {
             // i18n: verb: opens the downloaded file
             I("Open", Cmd::Open, done, false),
             I("Open with...", Cmd::OpenWith, done, false),
-            I("Open folder", Cmd::OpenFolder, done, false),
+            // A torrent's folder is there while it downloads (#354).
+            I(
+                "Open folder",
+                Cmd::OpenFolder,
+                done || it.is_some_and(|i| i.torrent.is_some()),
+                false,
+            ),
             Sep,
             I("Move/Rename (Ctrl-M)", Cmd::MoveRename, movable, false),
             Sep,
@@ -6149,8 +6162,12 @@ impl App {
         // The menu bar from the keyboard: F10 or Alt pressed alone opens its first menu, Alt and a
         // menu's underlined letter that menu (Windows and Linux); on macOS, whose apps have no
         // Alt keys, Ctrl+F2 (the system's key for the menu bar).
-        if self.open_menu.is_none() && self.popup.is_none() && ctx.memory(|m| m.focused().is_none())
-        {
+        // A focused button or list (Tab, a screen reader, #328) leaves these keys to the menu bar;
+        // only a text box keeps them.
+        let typing = ctx
+            .memory(|m| m.focused())
+            .is_some_and(|id| egui::TextEdit::load_state(&ctx, id).is_some());
+        if self.open_menu.is_none() && self.popup.is_none() && !typing {
             let labels: Vec<String> = chrome::menus(ui.painter())
                 .iter()
                 .map(|(l, ..)| chrome::menu_letter(l))
