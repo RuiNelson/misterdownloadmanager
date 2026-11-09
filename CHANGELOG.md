@@ -8,6 +8,11 @@ Each release's notes on GitHub come from its section here (`## [X.Y.Z]`, see
 ### Added
 
 - **A Safari extension, inside the Mac app:** a click on a link to a file type MDM takes goes to MDM, and so do the right-click items, the button over videos and **Media on this page**, as in the other browsers. Safari gives extensions no access to its downloads, so a download a page starts by itself stays with Safari, and the browser's proxy is not shared. See [Browser integration](docs/browser-integration.md#safari-macos).
+- Help: what to do when an antivirus or VirusTotal flags MDM, and how to check your copy is the real one.
+
+### Fixed
+
+- Adding a link again after its finished file was moved or deleted starts a new download, instead of asking about a duplicate that isn't there ([#342](https://github.com/anefzaoui/misterdownloadmanager/issues/342)).
 
 ## [0.5.1] - 2026-11-08
 
