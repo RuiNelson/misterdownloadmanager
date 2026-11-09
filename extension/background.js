@@ -1295,13 +1295,25 @@ async function offer(item, url, name) {
 // when the app took it; else page.js lets the click go on, so nothing is lost. The link's file
 // name is its `download` attribute's (`name`), else its address's (Safari names a download only
 // when it starts, which is too late).
+// The name an address gives, readable: the app saves a name as it is told it (the browsers' own
+// downloads come already named), so `My%20file.zip` would stay that.
+function addressName(url) {
+  const last = url.split(/[?#]/)[0].split("/").pop() || "";
+  try {
+    return decodeURIComponent(last);
+  } catch {
+    return last; // not valid percent-encoding
+  }
+}
+
 async function link(url, referrer, incognito, name) {
   // What the browser opens itself (a PDF, a song) is taken only when Options say so (`opened`,
   // "Also take files the browser would open"), as in the other browsers.
   const r = await currentRules();
   const type = extensionOf(name || url.split(/[?#]/)[0]).toUpperCase();
   if (r && r.opened === false && OPENED[type]) return { taken: false };
-  const item = { url, referrer, incognito, ...(name ? { filename: name } : {}) };
+  const filename = name || addressName(url);
+  const item = { url, referrer, incognito, ...(filename ? { filename } : {}) };
   const c = await candidate(item, url).catch(() => null);
   if (!c || c.left) {
     leftAlone(c, item, url);

@@ -1736,6 +1736,13 @@ const ask = (listeners) => (m, sender) => new Promise((r) => listeners.message(m
   calls.length = 0;
   assert.deepEqual(await send({ type: "link", url: "https://x.test/dl?id=4", name: "b.iso" }, sender), { taken: true });
   assert.equal(natives(calls)[0].filename, "b.iso");
+  // An address's own name reaches the app readable, not percent-encoded.
+  calls.length = 0;
+  assert.deepEqual(await send({ type: "link", url: "https://x.test/f/My%20Report.zip?x=1" }, sender), { taken: true });
+  assert.equal(natives(calls)[0].filename, "My Report.zip");
+  calls.length = 0;
+  assert.deepEqual(await send({ type: "link", url: "https://x.test/f/bad%ZZ.zip" }, sender), { taken: true });
+  assert.equal(natives(calls)[0].filename, "bad%ZZ.zip", "not percent-encoding: left as it is");
   // page.js's "rules" at a page's start: fresh ones aren't asked for again.
   calls.length = 0;
   assert.deepEqual(await send({ type: "rules" }, sender), { ok: true });
